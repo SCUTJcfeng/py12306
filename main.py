@@ -1,7 +1,8 @@
-# encoding=utf8
+# -*- coding: utf-8 -*-
 import sys
 
 from py12306.app import *
+from py12306.helpers.cdn import Cdn
 from py12306.log.common_log import CommonLog
 from py12306.query.query import Query
 from py12306.user.user import User
@@ -16,10 +17,11 @@ def main():
     App.did_start()
 
     App.run_check()
-    Query.check_before_fun()
+    Query.check_before_run()
 
     ####### 运行任务
     Web.run()
+    Cdn.run()
     User.run()
     Query.run()
     if not Const.IS_TEST:
@@ -38,6 +40,7 @@ def test():
         座位验证
         乘客验证
         语音验证码验证
+        通知验证
     :return:
     """
     Const.IS_TEST = True

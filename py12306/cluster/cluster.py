@@ -23,8 +23,12 @@ class Cluster():
     KEY_CHANNEL_LOG = KEY_PREFIX + 'channel_log'
     KEY_CHANNEL_EVENT = KEY_PREFIX + 'channel_even'
     KEY_USER_COOKIES = KEY_PREFIX + 'user_cookies'
+    KEY_USER_INFOS = KEY_PREFIX + 'user_infos'
     KEY_USER_LAST_HEARTBEAT = KEY_PREFIX + 'user_last_heartbeat'
-    KEY_NODES_ALIVE = KEY_PREFIX + 'nodes_alive'
+    KEY_NODES_ALIVE_PREFIX = KEY_PREFIX + 'nodes_alive_'
+
+    KEY_CDN_AVAILABLE_ITEMS = KEY_PREFIX + 'cdn_available_items'
+    KEY_CDN_LAST_CHECK_AT = KEY_PREFIX + 'cdn_last_check_at'
 
     # 锁
     KEY_LOCK_INIT_USER = KEY_PREFIX + 'lock_init_user'  # 暂未使用
@@ -181,9 +185,8 @@ class Cluster():
         检查节点是否存活
         :return:
         """
-        alive = self.session.hgetall(self.KEY_NODES_ALIVE)
         for node in self.nodes:
-            if node not in alive or (time_int() - int(alive[node])) > self.lost_alive_time:
+            if not self.session.exists(self.KEY_NODES_ALIVE_PREFIX + node):
                 self.left_cluster(node)
 
     # def kick_out_from_nodes(self, node_name):
@@ -193,12 +196,17 @@ class Cluster():
         while True:
             if self.node_name not in self.get_nodes():  # 已经被 kict out  重新加下
                 self.join_cluster()
-            self.session.hset(self.KEY_NODES_ALIVE, self.node_name, str(time_int()))
+            self.session.set(self.KEY_NODES_ALIVE_PREFIX + self.node_name, Config().NODE_IS_MASTER, ex=self.lost_alive_time)
             stay_second(self.keep_alive_time)
 
     def subscribe(self):
         while True:
-            message = self.pubsub.get_message()
+            try:
+                message = self.pubsub.get_message()
+            except RuntimeError as err:
+                if 'args' in dir(err) and err.args[0].find('pubsub connection not set') >= 0:  # 失去重连
+                    self.pubsub.subscribe(self.KEY_CHANNEL_LOG, self.KEY_CHANNEL_EVENT)
+                    continue
             if message:
                 if message.get('type') == 'message' and message.get('channel') == self.KEY_CHANNEL_LOG and message.get(
                         'data'):
@@ -253,3 +261,14 @@ class Cluster():
     def set_user_cookie(cls, key, value):
         self = cls()
         return self.session.hset(Cluster.KEY_USER_COOKIES, key, pickle.dumps(value, 0).decode())
+
+    @classmethod
+    def set_user_info(cls, key, info):
+        self = cls()
+        return self.session.hset(Cluster.KEY_USER_INFOS, key, pickle.dumps(info, 0).decode())
+
+    @classmethod
+    def get_user_info(cls, key, default=None):
+        self = cls()
+        res = self.session.hget(Cluster.KEY_USER_INFOS, key)
+        return pickle.loads(res.encode()) if res else default

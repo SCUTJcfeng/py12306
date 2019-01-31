@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import datetime
 import hashlib
 import json
@@ -105,12 +106,26 @@ def get_file_total_line_num(file, encoding='utf-8'):
         return len(f.readlines())
 
 
+def touch_file(path):
+    with open(path, 'a'): pass
+
+
+def pick_file_lines(file, lines):
+    return [x for i, x in enumerate(file) if i in lines]
+
+
 def str_to_time(str):
     return datetime.datetime.strptime(str, '%Y-%m-%d %H:%M:%S.%f')
 
 
 def time_int():
     return int(time.time())
+
+
+def is_number(val):
+    if isinstance(val, int): return val
+    if isinstance(val, str): return val.isdigit()
+    return False
 
 
 def create_thread_and_run(jobs, callback_name, wait=True, daemon=True, args=(), kwargs={}):

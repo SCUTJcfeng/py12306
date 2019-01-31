@@ -30,7 +30,7 @@ def convert_job_to_info(job: Job):
         'member_num': job.member_num,
         'allow_seats': job.allow_seats,
         'allow_train_numbers': job.allow_train_numbers,
-        'passengers': job.passengers,
+        'except_train_numbers': job.except_train_numbers,
         'allow_less_member': job.allow_less_member,
         'passengers': job.passengers,
     }

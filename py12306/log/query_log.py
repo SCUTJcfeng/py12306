@@ -1,3 +1,4 @@
+# -*- coding:utf-8 -*-
 import datetime
 import json
 import sys
@@ -25,7 +26,7 @@ class QueryLog(BaseLog):
     LOG_INIT_JOBS = ''
 
     MESSAGE_GIVE_UP_CHANCE_CAUSE_TICKET_NUM_LESS_THAN_SPECIFIED = '余票数小于乘车人数，放弃此次提交机会'
-    MESSAGE_QUERY_LOG_OF_EVERY_TRAIN = '{}-{}'
+    MESSAGE_QUERY_LOG_OF_EVERY_TRAIN = '{}'
     MESSAGE_QUERY_LOG_OF_TRAIN_INFO = '{} {}'
     MESSAGE_QUERY_START_BY_DATE = '出发日期 {}: {} - {}'
 
@@ -33,10 +34,10 @@ class QueryLog(BaseLog):
 
     MESSAGE_SKIP_ORDER = '跳过本次请求，节点 {} 用户 {} 正在处理该订单\n'
 
-    MESSAGE_QUERY_JOB_BEING_DESTROY = '当前查询任务 {} 已结束\n'
+    MESSAGE_QUERY_JOB_BEING_DESTROY = '查询任务 {} 已结束\n'
 
     MESSAGE_INIT_PASSENGERS_SUCCESS = '初始化乘客成功'
-    MESSAGE_CHECK_PASSENGERS = '正在验证乘客信息'
+    MESSAGE_CHECK_PASSENGERS = '查询任务 {} 正在验证乘客信息'
 
     MESSAGE_USER_IS_EMPTY_WHEN_DO_ORDER = '未配置自动下单账号，{} 秒后继续查询\n'
     MESSAGE_ORDER_USER_IS_EMPTY = '未找到下单账号，{} 秒后继续查询'
@@ -52,13 +53,16 @@ class QueryLog(BaseLog):
     def init_data(cls):
         self = cls()
         # 获取上次记录
-        # if Const.IS_TEST: return
         result = False
         if not Config.is_cluster_enabled() and path.exists(self.data_path):
             with open(self.data_path, encoding='utf-8') as f:
                 result = f.read()
-                if result:
+                try:
                     result = json.loads(result)
+                except json.JSONDecodeError as e:
+                    result = {}
+                    # self.add_quick_log('加载status.json失败, 文件内容为: {}.'.format(repr(result)))
+                    # self.flush()  # 这里可以用不用提示
 
         if Config.is_cluster_enabled():
             result = self.get_data_from_cluster()
@@ -97,7 +101,11 @@ class QueryLog(BaseLog):
             self.add_log('乘车日期：{}'.format(job.left_dates))
             self.add_log('坐席：{}'.format('，'.join(job.allow_seats)))
             self.add_log('乘车人：{}'.format('，'.join(job.members)))
-            self.add_log('筛选车次：{}'.format('，'.join(job.allow_train_numbers if job.allow_train_numbers else ['不筛选'])))
+            if job.except_train_numbers:
+                train_number_message = '排除 ' + '，'.join(job.allow_train_numbers)
+            else:
+                train_number_message = '，'.join(job.allow_train_numbers if job.allow_train_numbers else ['不筛选'])
+            self.add_log('筛选车次：{}'.format(train_number_message))
             self.add_log('任务名称：{}'.format(job.job_name))
             # 乘车日期：['2019-01-24', '2019-01-25', '2019-01-26', '2019-01-27']
             self.add_log('')
@@ -152,19 +160,23 @@ class QueryLog(BaseLog):
     @classmethod
     def print_job_start(cls, job_name):
         self = cls()
-        self.add_log(
-            '=== 正在进行第 {query_count} 次查询 {job_name} === {time}'.format(
-                query_count=(self.data.get('query_count', 0)) + 1,
-                job_name=job_name, time=datetime.datetime.now()))
+        message = '>> 第 {query_count} 次查询 {job_name} {time}'.format(
+            query_count=int(self.data.get('query_count', 0)) + 1,
+            job_name=job_name, time=time_now().strftime("%Y-%m-%d %H:%M:%S"))
+        self.add_log(message)
         self.refresh_data()
         if is_main_thread():
             self.flush(publish=False)
         return self
 
     @classmethod
+    def add_query_time_log(cls, time, is_cdn):
+        return cls().add_log(('*' if is_cdn else '') + '耗时 %.2f' % time)
+
+    @classmethod
     def add_stay_log(cls, second):
         self = cls()
-        self.add_log('安全停留 {}'.format(second))
+        self.add_log('停留 {}'.format(second))
         return self
 
     def print_data_restored(self):

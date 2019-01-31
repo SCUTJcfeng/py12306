@@ -29,7 +29,7 @@ class UserLog(BaseLog):
     MESSAGE_USER_BEING_DESTROY = '用户 {} 已退出'
     MESSAGE_USER_COOKIE_NOT_FOUND_FROM_REMOTE = '用户 {} 状态加载中...'
 
-    MESSAGE_WAIT_USER_INIT_COMPLETE = '账号正在初始化，{} 秒后自动重试'
+    MESSAGE_WAIT_USER_INIT_COMPLETE = '账号正在登录中，{} 秒后自动重试'
 
     def __init__(self):
         super().__init__()
@@ -70,3 +70,7 @@ class UserLog(BaseLog):
         self.add_quick_log('# 乘客验证成功 {} #\n'.format(', '.join(result)))
         self.flush()
         return self
+
+    @classmethod
+    def print_user_expired(cls):
+        return cls().add_quick_log(cls.MESSAGE_LOADED_USER_BUT_EXPIRED).flush()
